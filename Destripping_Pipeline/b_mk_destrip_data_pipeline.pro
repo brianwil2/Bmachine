@@ -1,4 +1,4 @@
-pro b_mk_lvl2_data_Pipeline_c,dirlist
+pro b_mk_destrip_data_pipeline,dirlist
 
 ;writehistory='First try 4-21-2009 by Brian Williams'
 ;writehistory='Second try 8-9-2009 by Brian Williams'
@@ -8,8 +8,13 @@ pro b_mk_lvl2_data_Pipeline_c,dirlist
 ; Sample Call
 ;     b_mk_lvl2_data_Pipeline_c, ['20080826']
 
-compile_opt idl2
+;compile_opt idl2
 starttime=systime()
+
+;White Mountain 
+Latitude=37.583375
+Longitude=118.237095
+altitude=3700
 
 RTD=180./!pi
 dtr=!pi/180.
@@ -21,7 +26,7 @@ dtr=!pi/180.
 
 ;********** Laptop directories
 lvl1path='/Users/brianw/B_Machine/Level1/'
-lvl2path='/Users/brianw/B_Machine/Level2/'
+lvl2path='/Users/brianw/B_Machine/LevelDestrip/'
 restore, '/Users/brianw/B_Machine/calibration/CalCorrectionStructure.sav'
 ndir=n_elements(dirlist)
 
@@ -30,6 +35,10 @@ hr=['00','01','02','03','04','05','06','07','08','09','10','11','12','13','14','
 for i=0,ndir-1 do begin
 
 	file_mkdir,strcompress(lvl2path+dirlist[i],/remove_all)
+	  dat=dirl[i]
+    year=float(strmid(dat,0,4))
+    month=float(strmid(dat,4,2))
+    day=float(strmid(dat,6,2))
 
 	;******************************* Getting Calibrations******************************
 	calnum= where(strmid(calcorrections.dates[*],24,8) eq strcompress(dirlist[i]),count)
@@ -72,6 +81,7 @@ for i=0,ndir-1 do begin
 			lvl1data=b_read_lvl1_fits_pipeline(files=lvl1filelist,keep=[0,1,2,3,4,5,6])
 			lvl1data=B_pointing_interp(lvl1data)
 			flags=lvl2_Data_selection(lvl1data)
+			time=reform(lvl1data.time)
 
 			Status=lvl1data.status
 
@@ -87,8 +97,18 @@ for i=0,ndir-1 do begin
 			if countaz gt 0 then begin
 				azimuth_chan1[aztest]=azimuth_chan1[aztest]+360.0
 			endif
-		Revs_chan1=lvl1data.revolution
-		time_chan1=lvl1data.time
+			
+      para_angle=azimuth_chan1[*]*0.0
+      lst=sidetime(month,day,year,time,longitude)
+      Azel2radec,azimuth_chan1,elevations_chan1,ra_chan1,dec_chan1,latitude,lst
+      ra=ra mod(24)
+      rad=ra*360./24.
+      phi = rad *( (2*!DPI)/360. )          ;Right Acsension
+      theta = (90. - dec) * (!DPI / 180.)   ;Declination
+      para_angle= get_parallactic_angle(month, day, year, time, azimuth_chan1, elevation_chan1, latitude, longitude, altitude)
+	
+      Revs_chan1=lvl1data.revolution
+      time_chan1=lvl1data.time
 
 ;********************************************************************************************************************
 
@@ -194,7 +214,7 @@ for i=0,ndir-1 do begin
 
           sxaddpar,header, '          ','          '
          	sxaddpar,header,'Band', '37-44Ghz'
-         	sxaddpar,header,'DataUnits', 'Volts'
+         	sxaddpar,header,'DataUnits', 'Kelvin'
          	sxaddpar,header,'Timeunits', 'FractionalHoursOfDay'
          	sxaddpar,header,'Pointunits', 'Degrees'
          	sxaddpar,header,'Choptype', 'SquareWave'
@@ -274,15 +294,24 @@ for i=0,ndir-1 do begin
          	fxbwritm,unit,['Data'],data_chan6
         	fxbfinish,unit
           ;********************************************************************************************************************
-
-
-
+      
        endif 	 ;end if for filedata check
     endfor   ; end of hour loop
 endfor    ; end of directory loop
 
 print,'Starttime is ' + starttime
 print,systime()
+
+
+
+para_angle=az[*]*0.0
+      lst=sidetime(month,day,year,time,longitude)
+      Azel2radec,az,elev,ra,dec,latitude,lst
+      ra=ra mod(24)
+      rad=ra*360./24.
+      phi = rad *( (2*!DPI)/360. )
+      theta = (90. - dec) * (!DPI / 180.)
+
 end
 
 
